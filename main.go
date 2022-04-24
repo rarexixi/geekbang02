@@ -1,9 +1,11 @@
 package main
 
 import (
-	"fmt"
+	"log"
+	"net"
 	"net/http"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -21,10 +23,26 @@ func main() {
 		(*rw).Header().Set("VERSION", os.Getenv("VERSION"))
 	}
 
-	http.HandleFunc("/req_header", func(rw http.ResponseWriter, r *http.Request) {
+	getClientIP := func(r *http.Request) string {
+		xForwardedFor := r.Header.Get("X-Forwarded-For")
+		ip := strings.TrimSpace(strings.Split(xForwardedFor, ",")[0])
+		if ip != "" {
+			return ip
+		}
+		ip = strings.TrimSpace(r.Header.Get("X-Real-Ip"))
+		if ip != "" {
+			return ip
+		}
+		if ip, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr)); err == nil {
+			return ip
+		}
+		return ""
+	}
+
+	http.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
 		copyHeader(&rw, r)
-		fmt.Printf("client host: %s\n", r.RemoteAddr)
-		fmt.Printf("return http code: %d\n", http.StatusOK)
+		log.Printf("client host: %s\n", getClientIP(r))
+		log.Printf("return http code: %d\n", http.StatusOK)
 	})
 
 	http.HandleFunc("/healthz", func(rw http.ResponseWriter, r *http.Request) {
